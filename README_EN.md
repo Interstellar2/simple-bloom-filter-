@@ -38,11 +38,15 @@ pip install -e .
 
 ### Optional dependencies
 
-The core library has **no external dependencies**. If you want to run the
-Redis-backed embedding cache demo, install the optional `redis` extras:
+The core library has **no external dependencies**. Optional extras are available for demos:
+
+- `redis` for the Redis-backed embedding cache demo.
+- `multimodal` for the image fingerprint deduplication demo (Pillow only).
 
 ```bash
 pip install -e ".[redis]"
+# or
+pip install -e ".[multimodal]"
 ```
 
 ### Development dependencies
@@ -168,6 +172,62 @@ python demos/embedding_cache_demo.py
 
 ---
 
+## Example: Image Fingerprint Deduplication
+
+Bloom filters can also act as a fast pre-filter for multimodal content. This
+example shows **image fingerprint presence filtering** using only Pillow.
+
+### Scenario: rejecting duplicate image uploads
+
+When a user uploads an image, the platform wants to reject it quickly if the
+same (or near-identical) image has been seen before. Instead of storing full
+images or large feature vectors, we compute a compact **perceptual hash**
+(a.k.a. fingerprint) and store it in a Bloom filter:
+
+```text
+uploaded image
+      ↓
+compute perceptual hash fingerprint
+      ↓
+Bloom filter
+      ↓ definitely new
+accept upload
+      ↓ might be a duplicate
+compare fingerprint against exact store
+      ↓ exact match exists
+reject upload (duplicate)
+      ↓ Bloom filter false positive
+accept upload and record fingerprint
+```
+
+### Important caveats
+
+- This is **fingerprint presence filtering**, not reverse-image search or
+  semantic similarity retrieval.
+- Perceptual hashes are robust to resizing, re-encoding, and minor brightness
+  changes, but hash collisions and Bloom filter false positives can still occur.
+- Any "might be a duplicate" result from the Bloom filter must be confirmed by
+  an exact store before rejecting the upload.
+
+### Run it
+
+```bash
+pip install -e ".[multimodal]"
+python demos/multimodal_image_dedup_demo.py
+```
+
+The demo generates synthetic images with Pillow, computes a 256-bit simplified
+perceptual hash for each, and uses the Bloom filter as a front-end for an
+in-memory exact store. It then queries:
+
+- the original images (exact matches),
+- resized + JPEG-recompressed variants (should still match),
+- brand-new images (should be reported as new).
+
+Full source: [demos/multimodal_image_dedup_demo.py](./demos/multimodal_image_dedup_demo.py)
+
+---
+
 ## Benchmarks
 
 A benchmark comparing `BloomFilter` with Python `set` is included in
@@ -208,7 +268,8 @@ Notes:
 │   └── counting.py           # CountingBloomFilter
 ├── demos/                    # Runnable examples
 │   ├── basic_demo.py
-│   └── embedding_cache_demo.py
+│   ├── embedding_cache_demo.py
+│   └── multimodal_image_dedup_demo.py
 ├── tests/                    # pytest suite
 │   ├── test_bloom_filter.py
 │   └── test_counting.py

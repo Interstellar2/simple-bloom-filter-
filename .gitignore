@@ -55,3 +55,6 @@ htmlcov/
 # Benchmark artifacts
 benchmark_results/
 *.prof
+
+# Demo outputs
+*_outputs/
